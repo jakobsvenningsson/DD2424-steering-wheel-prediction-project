@@ -1,0 +1,9 @@
+# pip install -r requirements.txt
+numpy
+scipy
+jupyter
+matplotlib
+Pillow
+scikit-learn
+pandas
+tensorflow
