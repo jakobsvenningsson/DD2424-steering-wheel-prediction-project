@@ -10,7 +10,7 @@ rows, cols = df.shape
  Assign label to each image
  1 = right 
  0 = straight 
- 1 = left
+ -1 = left
 """
 class_column = pd.Series(np.zeros(rows, dtype=int));
 for index in range(rows):
