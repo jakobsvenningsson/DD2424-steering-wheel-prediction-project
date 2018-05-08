@@ -6,38 +6,50 @@ import cv2
 import numpy as np
 import sys
 
+def main(): 
+    print("Running main")
+    labelFile = sys.argv[1]         # suggest renaming to labelDir  
+    imageData = sys.argv[2]         # suggest renaming to imageDir
+    n_classes = 3                   # left, straight, right
+    keep_prob = tf.placeholder(tf.float32)
+    batch_size = 50 
 
-labelFile = sys.argv[1]
-imageData = sys.argv[2]
-n_classes = 3
-keep_prob = tf.placeholder(tf.float32)
-batch_size = 50 
+    df = pd.read_csv(str(labelFile) + "/final_example.csv");    # labels
+    rows, cols = df.shape           # get dimensions of label file
 
-df = pd.read_csv(str(labelFile) + "/final_example.csv");
-rows, cols = df.shape
+    # Assign a label to each image
+    y_data = np.zeros((rows, n_classes), dtype=float) # initialize y to {0} 
+    for index in range(rows):   
+        angle = df.loc[index, 'steering_angle']
+        if angle > 0.1:
+            y_data[index, 2] = 1
+        elif angle < -0.1:
+            y_data[index, 0] = 1
+        else:
+            y_data[index, 1] = 1
 
-# Assign a label to each image
-y_data = np.zeros((rows, n_classes), dtype=float)
-for index in range(rows):
-    angle = df.loc[index, 'steering_angle']
-    if angle > 0.1:
-        y_data[index, 2] = 1
-    elif angle < -0.1:
-        y_data[index, 0] = 1
-    else:
-        y_data[index, 1] = 1
+    print(y_data)
 
-print(y_data)
-# Load image data
-images = os.listdir(str(imageData));
-images = images[50:2100]
-x_data = np.array([cv2.imread(os.path.join(str(imageData), img)).flatten() for img in images if img.endswith(".jpg")], dtype=np.float32)
-x_train = x_data[50:, :]
-y_train = y_data[50:, :]
-x_test = x_data[0: 50, :]
-y_test = y_data[0: 50, :]
-x = tf.placeholder("float", [None, 640 * 480 * 3] )
-y = tf.placeholder("float", [None, n_classes])
+    # Load image data
+    images = os.listdir(str(imageData));    # get all image paths
+    images = images[50:2100]                # truncate selected images
+    x_data = np.array([cv2.imread(os.path.join(str(imageData), img)).flatten() for img in images if img.endswith(".jpg")], dtype=np.float32)
+    x_train = x_data[50:, :]
+    y_train = y_data[50:, :]
+    x_test = x_data[0: 50, :]
+    y_test = y_data[0: 50, :]
+    x = tf.placeholder("float", [None, 640 * 480 * 3] )
+    y = tf.placeholder("float", [None, n_classes])
+
+
+    # Evaluate network
+    prediction = cnn(x, keep_prob, n_classes)
+    cost = tf.reduce_mean( tf.nn.softmax_cross_entropy_with_logits_v2(logits=prediction,labels=y) )
+    optimizer = tf.train.AdamOptimizer().minimize(cost)
+
+    train_neural_network(x_train, y_train, batch_size, y, optimizer, cost)
+
+
 def cnn(x, keep_prob, n_classes):
 
     #with tf.device("/device:gpu:0"):        
@@ -102,8 +114,6 @@ def train_neural_network(x_train, y_train, batch_size, y, optimizer, cost):
         accuracy = tf.reduce_mean(tf.cast(correct, 'float'))
         print('Accuracy:',accuracy.eval({x: x_test, y: y_test}))
 
-prediction = cnn(x, keep_prob, n_classes)
-cost = tf.reduce_mean( tf.nn.softmax_cross_entropy_with_logits_v2(logits=prediction,labels=y) )
-optimizer = tf.train.AdamOptimizer().minimize(cost)
 
-train_neural_network(x_train, y_train, batch_size, y, optimizer, cost)
+if __name__ == "__main__":
+    main()
