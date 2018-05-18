@@ -18,8 +18,8 @@ def input_parser(img_path, label):
     one_hot = tf.one_hot(label, 3)
     img_file = tf.read_file(img_path)
     #img_file = tf.read_file("/data2/center6/" + img_path + ".jpg")
-    img_decoded = tf.image.decode_jpeg(img_file, channels=1)
-    img_decoded = tf.image.resize_images(img_decoded, [240, 320])
+    img_decoded = tf.image.decode_jpeg(img_file, channels=3)
+    img_decoded = tf.image.resize_images(img_decoded, [60, 80])
     return img_decoded, one_hot
 
 def _parse_line(line):
@@ -42,15 +42,16 @@ def cnn(x, n_classes, keep_prob):
     """
 
     """
+    #xavier_init = tf.random_normal
     xavier_init = tf.keras.initializers.he_normal()
     weights = {
-            'W_conv1': tf.Variable(xavier_init([5, 5, 1, 32])),
+            'W_conv1': tf.Variable(xavier_init([5, 5, 3, 32])),
             'W_conv2': tf.Variable(xavier_init([5, 5, 32, 32])),
             'W_conv3': tf.Variable(xavier_init([5, 5, 32, 32])),
             'W_conv4': tf.Variable(xavier_init([5, 5, 32, 32])),
-            'W_conv5': tf.Variable(xavier_init([5, 5, 32, 32])),
-            'W_conv6': tf.Variable(xavier_init([5, 5, 32, 32])),
-            'W_fc': tf.Variable(xavier_init([30 * 40 * 32, 1024])),
+            #'W_conv5': tf.Variable(xavier_init([5, 5, 32, 32])),
+            #'W_conv6': tf.Variable(xavier_init([5, 5, 32, 32])),
+            'W_fc': tf.Variable(xavier_init([15 * 20 * 32, 1024])),
             'out': tf.Variable(xavier_init([1024, n_classes]))
     }
 
@@ -60,18 +61,18 @@ def cnn(x, n_classes, keep_prob):
             'b_conv2': tf.Variable(xavier_init([32])),
             'b_conv3': tf.Variable(xavier_init([32])),
             'b_conv4': tf.Variable(xavier_init([32])),
-            'b_conv5': tf.Variable(xavier_init([32])),
-            'b_conv6': tf.Variable(xavier_init([32])),
+            #'b_conv5': tf.Variable(xavier_init([32])),
+            #'b_conv6': tf.Variable(xavier_init([32])),
             'b_fc': tf.Variable(xavier_init([1024])),
             'out': tf.Variable(xavier_init([n_classes]))
     }
 
     conv1 = tf.nn.leaky_relu(conv2d(x, weights['W_conv1']) +  biases['b_conv1'])
-    tf.summary.image("conv1_filter1", tf.reshape(conv1[:,:,:,1], [-1, 240, 320, 1]))
-    tf.summary.image("conv1_filter2", tf.reshape(conv1[:,:,:,2], [-1, 240, 320, 1]))
-    tf.summary.image("conv1_filter3", tf.reshape(conv1[:,:,:,3], [-1, 240, 320, 1]))
-    tf.summary.image("conv1_filter4", tf.reshape(conv1[:,:,:,4], [-1, 240, 320, 1]))
-    tf.summary.image("conv1_filter5", tf.reshape(conv1[:,:,:,5], [-1, 240, 320, 1]))
+    #tf.summary.image("conv1_filter1", tf.reshape(conv1[:,:,:,1], [-1, 240, 320, 1]))
+    #tf.summary.image("conv1_filter2", tf.reshape(conv1[:,:,:,2], [-1, 240, 320, 1]))
+    #tf.summary.image("conv1_filter3", tf.reshape(conv1[:,:,:,3], [-1, 240, 320, 1]))
+    #tf.summary.image("conv1_filter4", tf.reshape(conv1[:,:,:,4], [-1, 240, 320, 1]))
+    #tf.summary.image("conv1_filter5", tf.reshape(conv1[:,:,:,5], [-1, 240, 320, 1]))
     conv2 = tf.nn.leaky_relu(conv2d(conv1, weights['W_conv2']) +  biases['b_conv2'])
     #tf.summary.image("conv2_filter1", tf.reshape(conv2[:,:,:,1], [-1, 240, 320, 1]))
     #tf.summary.image("conv2_filter2", tf.reshape(conv2[:,:,:,2], [-1, 240, 320, 1]))
@@ -81,11 +82,11 @@ def cnn(x, n_classes, keep_prob):
     conv2 = maxpool2d(conv1)
 
     conv3 = tf.nn.leaky_relu(conv2d(conv2, weights['W_conv3'] + biases['b_conv3']))
-    tf.summary.image("conv3_filter1", tf.reshape(conv3[:,:,:,1], [-1, 120, 160, 1]))
-    tf.summary.image("conv3_filter2", tf.reshape(conv3[:,:,:,2], [-1, 120, 160, 1]))
-    tf.summary.image("conv3_filter3", tf.reshape(conv3[:,:,:,3], [-1, 120, 160, 1]))
-    tf.summary.image("conv3_filter4", tf.reshape(conv3[:,:,:,4], [-1, 120, 160, 1]))
-    tf.summary.image("conv3_filter5", tf.reshape(conv3[:,:,:,5], [-1, 120, 160, 1]))
+    #tf.summary.image("conv3_filter1", tf.reshape(conv3[:,:,:,1], [-1, 120, 160, 1]))
+    #tf.summary.image("conv3_filter2", tf.reshape(conv3[:,:,:,2], [-1, 120, 160, 1]))
+    #tf.summary.image("conv3_filter3", tf.reshape(conv3[:,:,:,3], [-1, 120, 160, 1]))
+    #tf.summary.image("conv3_filter4", tf.reshape(conv3[:,:,:,4], [-1, 120, 160, 1]))
+    #tf.summary.image("conv3_filter5", tf.reshape(conv3[:,:,:,5], [-1, 120, 160, 1]))
     conv4 = tf.nn.leaky_relu(conv2d(conv3, weights['W_conv4'] + biases['b_conv4']))
     #tf.summary.image("conv4_filter1", tf.reshape(conv4[:,:,:,1], [-1, 240, 320, 1]))
     #tf.summary.image("conv4_filter2", tf.reshape(conv4[:,:,:,2], [-1, 240, 320, 1]))
@@ -94,22 +95,22 @@ def cnn(x, n_classes, keep_prob):
     #tf.summary.image("conv4_filter5", tf.reshape(conv4[:,:,:,5], [-1, 240, 320, 1]))
     conv4 = maxpool2d(conv2)
 
-    conv5 = tf.nn.leaky_relu(conv2d(conv4, weights['W_conv5'] + biases['b_conv5']))
-    tf.summary.image("conv5_filter1", tf.reshape(conv5[:,:,:,1], [-1, 60, 80, 1]))
-    tf.summary.image("conv5_filter2", tf.reshape(conv5[:,:,:,2], [-1, 60, 80, 1]))
-    tf.summary.image("conv5_filter3", tf.reshape(conv5[:,:,:,3], [-1, 60, 80, 1]))
-    tf.summary.image("conv5_filter4", tf.reshape(conv5[:,:,:,4], [-1, 60, 80, 1]))
-    tf.summary.image("conv5_filter5", tf.reshape(conv5[:,:,:,5], [-1, 60, 80, 1]))
-    conv6 = tf.nn.leaky_relu(conv2d(conv5, weights['W_conv6'] + biases['b_conv6']))
+    #conv5 = tf.nn.leaky_relu(conv2d(conv4, weights['W_conv5'] + biases['b_conv5']))
+    #tf.summary.image("conv5_filter1", tf.reshape(conv5[:,:,:,1], [-1, 60, 80, 1]))
+    #tf.summary.image("conv5_filter2", tf.reshape(conv5[:,:,:,2], [-1, 60, 80, 1]))
+    #tf.summary.image("conv5_filter3", tf.reshape(conv5[:,:,:,3], [-1, 60, 80, 1]))
+    #tf.summary.image("conv5_filter4", tf.reshape(conv5[:,:,:,4], [-1, 60, 80, 1]))
+    #tf.summary.image("conv5_filter5", tf.reshape(conv5[:,:,:,5], [-1, 60, 80, 1]))
+    #conv6 = tf.nn.leaky_relu(conv2d(conv5, weights['W_conv6'] + biases['b_conv6']))
     #tf.summary.image("conv6_filter1", tf.reshape(conv6[:,:,:,1], [-1, 240, 320, 1]))
     #tf.summary.image("conv6_filter2", tf.reshape(conv6[:,:,:,2], [-1, 240, 320, 1]))
     #tf.summary.image("conv6_filter3", tf.reshape(conv6[:,:,:,3], [-1, 240, 320, 1]))
     #tf.summary.image("conv6_filter4", tf.reshape(conv6[:,:,:,4], [-1, 240, 320, 1]))
     #tf.summary.image("conv6_filter5", tf.reshape(conv6[:,:,:,5], [-1, 240, 320, 1]))
-    conv6 = maxpool2d(conv5)
+    #conv6 = maxpool2d(conv5)
 
 
-    fc = tf.reshape(conv6, [-1, 30 * 40 * 32])
+    fc = tf.reshape(conv4, [-1, 15 * 20 * 32])
     fc = tf.nn.leaky_relu(tf.matmul(fc, weights['W_fc'] + biases['b_fc']))
     fc = tf.nn.dropout(fc, keep_prob)
     output = tf.matmul(fc, weights['out'] + biases['out'])
@@ -133,13 +134,13 @@ def train_neural_network(y, optimizer, cost):
     #_out_acc_train = open("acc_train.out","w")
     #_out_acc_validation = open("acc_validation.out","w")
 
-    _out_final_accuracy = open("final_acc_test.out", "w")
+    _out_final_accuracy = open("final_acc_test2.out", "w")
     print("Training starts.")
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
-        train_writer = tf.summary.FileWriter('./logs/train', sess.graph)
-        validation_writer = tf.summary.FileWriter('./logs/validation', sess.graph)
+        train_writer = tf.summary.FileWriter('./logs1/train', sess.graph)
+        validation_writer = tf.summary.FileWriter('./logs1/validation', sess.graph)
         for epoch in range(hm_epochs):
             sess.run(ds_train_iterator.initializer)
             #epoch_loss = 0
@@ -148,7 +149,7 @@ def train_neural_network(y, optimizer, cost):
             while True:
                 try:
                     elem = sess.run(train_next_element)
-                    """
+                    
                     sample_x = []
                     sample_y = []
                     for i, e in enumerate(elem[1]):
@@ -163,10 +164,12 @@ def train_neural_network(y, optimizer, cost):
                         else:
                             sample_x.append(elem[0][i])
                             sample_y.append(e)
-                    """
+                    
                     merge = tf.summary.merge_all()
-                    _, c = sess.run([optimizer, cost], feed_dict={x: elem[0], y: elem[1], keep_prob: 0.8})
+                    #_, c = sess.run([optimizer, cost], feed_dict={x: elem[0], y: elem[1], keep_prob: 0.8})
+                    _, c = sess.run([optimizer, cost], feed_dict={x: sample_x, y: sample_y, keep_prob: 0.8})
                     _, epoch_accuracy, summary, mean_err = sess.run([avg_acc, avg_acc_update, merge, mean_error_update], feed_dict={x: sample_x, y: sample_y, keep_prob: 0.8})
+                    #_, epoch_accuracy, summary, mean_err = sess.run([avg_acc, avg_acc_update, merge, mean_error_update], feed_dict={x: elem[0], y: elem[1], keep_prob: 0.8})
                     train_writer.add_summary(summary, epoch)
                     #epoch_loss += c
                     #count += 1
@@ -175,52 +178,24 @@ def train_neural_network(y, optimizer, cost):
                 except tf.errors.OutOfRangeError:
                     s = 5
                     epoch_validation_accuracy = 0
-                    #validation_cost = 0
                     sess.run(ds_validation_iterator.initializer)
                     for i in range(s):
                         try:
                             elem_validation = sess.run(validation_next_element)
                             merge = tf.summary.merge_all()
                             _, c = sess.run([optimizer, cost], feed_dict={x: elem_validation[0], y: elem_validation[1], keep_prob: 1.0})
-                            validation_cost += c
                             _, epoch_validation_accuracy, summary, mean_err = sess.run([avg_acc, avg_acc_update, merge, mean_error_update], feed_dict={x: elem_validation[0], y: elem_validation[1], keep_prob: 1.0})
                             predictions = prediction.eval(feed_dict = {x: elem_validation[0], keep_prob: 1.0})
                             validation_writer.add_summary(summary, epoch)
                             if i == 0:
                                 print(predictions)
-                            #correct = tf.equal(tf.argmax(prediction, 1), tf.argmax(elem_test[1], 1))
-                            #acc = tf.reduce_mean(tf.cast(correct, 'float'))
-                            #accuracy += acc.eval({x: elem_test[0], y: elem_test[1], keep_prob: 1.0})
                         except tf.errors.OutOfRangeError:
                             print('ERROR Accuracy:',accuracy/s)
                     print("End of epoch.")
                     print("Train accuracy; ", epoch_accuracy)
                     print("validation accuracy: ", epoch_validation_accuracy)
-
-
-                    #_accuracy_train.append(epoch_accuracy)
-                    #_accuracy_validation.append(epoch_validation_accuracy)
-
-                    #_cost_train.append(epoch_loss/count)
-                    #_cost_validation.append(validation_cost/s)
-
-                    #_out_loss_train.write(str(epoch_loss) + "\n")
-                    #_out_loss_validation.write(str(validation_cost/s) + "\n")
-
-                    #_out_acc_train.write(str(epoch_accuracy/count) + "\n")
-                    #_out_acc_validation.write(str(epoch_validation_accuracy) + "\n")
-
                     break
-            print('Epoch', epoch, 'completed out of',hm_epochs,'loss:',epoch_loss)
-            """
-            try:
-                correct = tf.equal(tf.argmax(prediction, 1), tf.argmax(y, 1))
-                accuracy = tf.reduce_mean(tf.cast(correct, 'float'))
-                print('Accuracy:',accuracy.eval({x: elem_test[0], y: elem_test[1], keep_prob: 1.0 }))
-            except tf.errors.OutOfRangeError:
-                print("failed to get test data.")
-                break
-            """
+            print('Epoch', epoch, 'completed out of',hm_epochs)
         s = 10
         epoch_test_accuracy = 0
         for i in range(s):
@@ -254,7 +229,7 @@ batch_size = 256
 n_classes = 3
 image_width = 320
 image_height = 240
-hm_epochs = 5
+hm_epochs = 80
 print("Setting up")
 
 ds_test = tf.data.TextLineDataset("test.csv").skip(1)
@@ -276,7 +251,7 @@ print("Validation data setup completed")
 ds_train = tf.data.TextLineDataset("train.csv").skip(1)
 ds_train = ds_train.map(_parse_line)
 ds_train = ds_train.map(input_parser)
-ds_train = ds_train.shuffle(buffer_size=1024)
+ds_train = ds_train.shuffle(buffer_size=8000)
 ds_train = ds_train.repeat(1)
 ds_train = ds_train.batch(batch_size)
 ds_train_iterator = ds_train.make_initializable_iterator();
@@ -286,7 +261,7 @@ print("Train data setup completed")
 
 
 keep_prob = tf.placeholder(tf.float32)
-x = tf.placeholder("float", [None, 240, 320, 1])
+x = tf.placeholder("float", [None, 60, 80, 3])
 y = tf.placeholder("float", [None, n_classes])
 
 prediction = cnn(x, n_classes, keep_prob)
@@ -341,5 +316,5 @@ Optimizer
 
 We introduce Adam, an algorithm for first-order gradient-based optimization of stochastic objective functions, based on adaptive estimates of lower-order moments. The method is straightforward to implement, is computationally efficient, has little memory requirements, is invariant to diagonal rescaling of the gradients, and is well suited for problems that are large in terms of data and/or parameters. The method is also appropriate for non-stationary objectives and problems with very noisy and/or sparse gradients. The hyper-parameters have intuitive interpretations and typically require little tuning. Some connections to related algorithms, on which Adam was inspired, are discussed. We also analyze the theoretical convergence properties of the algorithm and provide a regret bound on the convergence rate that is comparable to the best known results under the online convex optimization framework. Empirical results demonstrate that Adam works well in practice and compares favorably to other stochastic optimization methods. Finally, we discuss AdaMax, a variant of Adam based on the infinity norm.
 """
-optimizer = tf.train.AdamOptimizer().minimize(cost)
+optimizer = tf.train.AdamOptimizer(learning_rate=0.05).minimize(cost)
 train_neural_network(y, optimizer, cost)
