@@ -43,29 +43,30 @@ def cnn(x, n_classes, keep_prob):
     """
 
     """
-    #xavier_init = tf.random_normal
-    xavier_init = tf.keras.initializers.he_normal()
+    xavier_init = tf.random_normal
+    stddev = 0.001
+    #xavier_init = tf.keras.initializers.he_normal()
     weights = {
-            'W_conv1': tf.Variable(xavier_init([5, 5, 3, 32])),
-            'W_conv2': tf.Variable(xavier_init([5, 5, 32, 32])),
-            'W_conv3': tf.Variable(xavier_init([5, 5, 32, 32])),
-            'W_conv4': tf.Variable(xavier_init([5, 5, 32, 32])),
-            'W_fc_1': tf.Variable(xavier_init([15 * 20 * 32, 15 * 20 * 32])),
-            'W_fc_2': tf.Variable(xavier_init([15 * 20 * 32, 1])),
-            'W_fc_3': tf.Variable(xavier_init([15 * 20 * 32, 1])),
-            #'out': tf.Variable(xavier_init([1024, 1]))
+            'W_conv1': tf.Variable(xavier_init([5, 5, 3, 32], stddev=stddev)),
+            'W_conv2': tf.Variable(xavier_init([5, 5,   32, 32], stddev=stddev)),
+            'W_conv3': tf.Variable(xavier_init([5, 5, 32, 32], stddev=stddev)),
+            'W_conv4': tf.Variable(xavier_init([5, 5, 32, 32], stddev=stddev)),
+            'W_fc_1': tf.Variable(xavier_init([15 * 20 * 32, 1], stddev=stddev)),
+            'W_fc_2': tf.Variable(xavier_init([1024, 512], stddev=stddev)),
+            'W_fc_3': tf.Variable(xavier_init([15 * 20 * 32, 1], stddev=stddev)),
+            'out': tf.Variable(xavier_init([512, 1], stddev=stddev))
     }
 
 
     biases = {
-            'b_conv1': tf.Variable(xavier_init([32])),
-            'b_conv2': tf.Variable(xavier_init([32])),
-            'b_conv3': tf.Variable(xavier_init([32])),
-            'b_conv4': tf.Variable(xavier_init([32])),
-            'b_fc_1': tf.Variable(xavier_init([15 * 20 * 32])),
-            'b_fc_2': tf.Variable(xavier_init([1])),
-            'b_fc_3': tf.Variable(xavier_init([1])),
-            #'out': tf.Variable(xavier_init([1]))
+            'b_conv1': tf.Variable(xavier_init([32], stddev=stddev)),
+            'b_conv2': tf.Variable(xavier_init([32], stddev=stddev)),
+            'b_conv3': tf.Variable(xavier_init([32], stddev=stddev)),
+            'b_conv4': tf.Variable(xavier_init([32], stddev=stddev)),
+            'b_fc_1': tf.Variable(xavier_init([1], stddev=stddev)),
+            'b_fc_2': tf.Variable(xavier_init([512], stddev=stddev)),
+            'b_fc_3': tf.Variable(xavier_init([1], stddev=stddev)),
+            'out': tf.Variable(xavier_init([1], stddev=stddev))
     }
 
     conv1 = tf.nn.leaky_relu(conv2d(x, weights['W_conv1']) +  biases['b_conv1'])
@@ -74,15 +75,15 @@ def cnn(x, n_classes, keep_prob):
 
     conv3 = tf.nn.leaky_relu(conv2d(conv2, weights['W_conv3'] + biases['b_conv3']))
     conv4 = tf.nn.leaky_relu(conv2d(conv3, weights['W_conv4'] + biases['b_conv4']))
-    conv4 = maxpool2d(conv2)
+    conv4 = maxpool2d(conv4)
 
     fc = tf.reshape(conv4, [-1, 15 * 20 * 32])
     fc1 = tf.nn.leaky_relu(tf.matmul(fc, weights['W_fc_1'] + biases['b_fc_1']))
-    fc2 = tf.nn.leaky_relu(tf.matmul(fc1, weights['W_fc_2'] + biases['b_fc_2']))
+    #fc2 = tf.nn.leaky_relu(tf.matmul(fc1, weights['W_fc_2'] + biases['b_fc_2']))
     #fc3 = tf.nn.leaky_relu(tf.matmul(fc2, weights['W_fc_3'] + biases['b_fc_3']))
     #fc = tf.nn.dropout(fc, keep_prob)
-    #output = tf.matmul(fc, weights['out'] + biases['out'])
-    return fc2
+    #output = tf.matmul(fc2, weights['out'] + biases['out'])
+    return fc1
 
 def conv2d(x, W):
     return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
@@ -91,63 +92,53 @@ def maxpool2d(x):
     return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
 
 def train_neural_network(y, optimizer, cost):
-    _out_final_accuracy = open("final_acc_test.out", "w")
+
     print("Training starts.")
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
-        train_writer = tf.summary.FileWriter('./logs/train', sess.graph)
-        validation_writer = tf.summary.FileWriter('./logs/validation', sess.graph)
+        train_writer = tf.summary.FileWriter("./logs/train")
+        validation_writer = tf.summary.FileWriter("./logs/validation")
         for epoch in range(hm_epochs):
             sess.run(ds_train_iterator.initializer)
-            epoch_accuracy = 0
+            m = None
             while True:
                 try:
-                    elem = sess.run(train_next_element)
                     merge = tf.summary.merge_all()
-                    _, c = sess.run([optimizer, cost], feed_dict={x: elem[0], y: elem[1], keep_prob: 0.8})
-                    print(c)
-                    _, epoch_accuracy, summary, mean_absolute_err = sess.run([avg_acc, avg_acc_update, merge, mean_absolute_error_update], feed_dict={x: elem[0], y: elem[1], keep_prob: 0.8})
-                    train_writer.add_summary(summary, epoch)
-                    print("loss: ", mean_absolute_err)
+                    elem = sess.run(train_next_element)
+                    _, c, m, mm, mean_squared = sess.run([optimizer, cost, merge, mean_squared_error, mean_squared_error_update], feed_dict={x: elem[0], y: elem[1], keep_prob: 0.8})
+                    print(mm)
+                    print(mean_squared)
                 except tf.errors.OutOfRangeError:
-                    """
-                    s = 5
-                    epoch_validation_accuracy = 0
+                    train_writer.add_summary(m, epoch)
+                    print("Train loss: ", mean_squared)
                     sess.run(ds_validation_iterator.initializer)
-                    for i in range(s):
+                    m = None
+                    while True:
                         try:
-                            elem_validation = sess.run(validation_next_element)
+                            elem_val = sess.run(validation_next_element)
                             merge = tf.summary.merge_all()
-                            _, c = sess.run([optimizer, cost], feed_dict={x: elem_validation[0], y: elem_validation[1], keep_prob: 1.0})
-                            _, epoch_validation_accuracy, summary, mean_err = sess.run([avg_acc, avg_acc_update, merge, mean_error_update], feed_dict={x: elem_validation[0], y: elem_validation[1], keep_prob: 1.0})
-                            predictions = prediction.eval(feed_dict = {x: elem_validation[0], keep_prob: 1.0})
-                            validation_writer.add_summary(summary, epoch)
-                            if i == 0:
-                                print(predictions)
+                            _, c, m, mm, mean_squared = sess.run([optimizer, cost, merge, mean_squared_error, mean_squared_error_update], feed_dict={x: elem_val[0], y: elem_val[1], keep_prob: 1.0})
+                            print(mm)
                         except tf.errors.OutOfRangeError:
-                            print('ERROR Accuracy:',accuracy/s)
-                    print("End of epoch.")
-                    print("Train accuracy; ", epoch_accuracy)
-                    print("validation accuracy: ", epoch_validation_accuracy)
-                    """
+                            validation_writer.add_summary(m, epoch)
+                            print("Validation loss ", mean_squared)
+                            break
                     break
-            print('Epoch', epoch, 'completed out of',hm_epochs)
-        """
-        s = 10
-        epoch_test_accuracy = 0
-        for i in range(s):
+        sess.run(ds_test_iterator.initializer)
+        test_loss = 0                    
+        test_dist_out = open("test_dist_out", "w")
+        while True:
+            print("Start test")
             try:
-                sess.run(ds_test_iterator.initializer)
                 elem_test = sess.run(test_next_element)
-                _, epoch_test_accuracy = sess.run([avg_acc, avg_acc_update], feed_dict={x: elem_test[0], y: elem_test[1], keep_prob: 1.0})
-
+                _, c, test_loss = sess.run([optimizer, cost, mean_squared_error_update], feed_dict={x: elem_test[0], y: elem_test[1], keep_prob: 1.0})
+                p = prediction.eval(feed_dict={x: elem_test[0], keep_prob: 1.0})
+                for i in range(len(p)):
+                    test_dist_out.write(str(p[i][0]) + " " + str(elem_test[1][i]) + "\n")
             except tf.errors.OutOfRangeError:
-                print("OUT OF RANGE")
-        print("TEST ACCURACY: ", epoch_test_accuracy)
-        _out_final_accuracy.write(str(epoch_test_accuracy) + "\n")
-
-        """    
+                print("TEST LOSS: ", test_loss)
+                break
 """
 :: START OF EXECUTION ::
 """
@@ -163,7 +154,7 @@ batch_size = 256
 n_classes = 1
 image_width = 320
 image_height = 240
-hm_epochs = 80
+hm_epochs = 50
 print("Setting up")
 
 ds_test = tf.data.TextLineDataset("test.csv").skip(1)
@@ -196,7 +187,7 @@ print("Train data setup completed")
 
 keep_prob = tf.placeholder(tf.float32)
 x = tf.placeholder("float", [None, 60, 80, 3])
-y = tf.placeholder("float", [None])
+y = tf.placeholder("float")
 
 prediction = cnn(x, n_classes, keep_prob)
 
@@ -204,25 +195,15 @@ prediction = cnn(x, n_classes, keep_prob)
 # Mesures the probability error in descrete classification tasks in which
 # the classes are mutually exclusive
 # https://www.tensorflow.org/api_docs/python/tf/nn/softmax_cross_entropy_with_logits_v2
-mean_squared_error = tf.losses.mean_squared_error(y, prediction[0])
+#mean_squared_error= tf.losses.mean_squared_error(y, prediction[:, 0])
 #out = tf.nn.softmax_cross_entropy_with_logits_v2(logits=prediction,labels=y)
-#tf.summary.histogram("Predictions Histogram", out)
+tf.summary.histogram("Predictions Histogram", prediction)
 
 # LEGACY CODE
 #tf.summary.scalar("Predictions Scalar", out)
 #correct_prediction = tf.equal(tf.argmax(prediction, 1), tf.argmax(y, 1))
 #accs = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-"""
-tf.metrics.accuracy(labels, predictions):
-Calculates how often predictions matches labels (y)
-
-https://www.tensorflow.org/api_docs/python/tf/metrics/accuracy
-"""
-avg_acc, avg_acc_update = tf.metrics.accuracy(prediction[0], y)
-
-# LEGACY CODE
-#tf.summary.histogram("Accuracy Histogram", update_)
 
 """
 tf.summary.scalar(name, real numeric tensor):
@@ -230,7 +211,7 @@ Outputs a Summary protocol buffer containing a single scalar value
 
 https://www.tensorflow.org/api_docs/python/tf/summary/scalar
 """
-tf.summary.scalar("Accuracy Scalar", avg_acc)
+#tf.summary.scalar("Accuracy Scalar", avg_acc)
 #class_weights = tf.constant([0.8, 0.8, 1.0])
 #out = tf.nn.weighted_cross_entropy_with_logits(logits=prediction, targets=y, pos_weight=class_weights)'
 """
@@ -239,8 +220,10 @@ Computes the mean of elements across dimensions of a tensor.
 
 https://www.tensorflow.org/api_docs/python/tf/reduce_mean
 """
-mean_absolute_error, mean_absolute_error_update = tf.metrics.mean_absolute_error(y, prediction[0])
-cost = tf.reduce_mean(mean_squared_error)
+mean_absolute_error, mean_absolute_error_update = tf.metrics.mean_absolute_error(y, prediction)
+mean_squared_error, mean_squared_error_update = tf.metrics.mean_squared_error(y, prediction)
+out = tf.losses.mean_squared_error(y, prediction[:, 0])
+cost = tf.reduce_mean(out)
 tf.summary.scalar("Mean Absolute Error", mean_absolute_error)
 tf.summary.scalar("Mean Squared Error", mean_squared_error)
 
