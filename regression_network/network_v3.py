@@ -47,35 +47,38 @@ def cnn(x, n_classes, keep_prob):
     stddev = 0.001
     #xavier_init = tf.keras.initializers.he_normal()
     weights = {
-            'W_conv1': tf.Variable(xavier_init([5, 5, 3, 32], stddev=stddev)),
-            'W_conv2': tf.Variable(xavier_init([5, 5,   32, 32], stddev=stddev)),
-            'W_conv3': tf.Variable(xavier_init([5, 5, 32, 32], stddev=stddev)),
-            'W_conv4': tf.Variable(xavier_init([5, 5, 32, 32], stddev=stddev)),
-            'W_fc_1': tf.Variable(xavier_init([15 * 20 * 32, 512], stddev=stddev)),
-            'W_fc_2': tf.Variable(xavier_init([512, 256], stddev=stddev)),
-            'W_fc_3': tf.Variable(xavier_init([15 * 20 * 32, 1], stddev=stddev)),
+            'W_conv1': tf.Variable(xavier_init([3, 3, 3, 32], stddev=stddev)),
+            'W_conv2': tf.Variable(xavier_init([3, 3, 32, 64], stddev=stddev)),
+            #'W_conv3': tf.Variable(xavier_init([5, 5, 32, 32], stddev=stddev)),
+            #'W_conv4': tf.Variable(xavier_init([5, 5, 32, 32], stddev=stddev)),
+            'W_fc_1': tf.Variable(xavier_init([30 * 40 * 32, 512], stddev=stddev)),
+            'W_fc_2': tf.Variable(xavier_init([512, 512], stddev=stddev)),
+            'W_fc_3': tf.Variable(xavier_init([512, 256], stddev=stddev)),
             'out': tf.Variable(xavier_init([512, 1], stddev=stddev))
     }
 
 
     biases = {
             'b_conv1': tf.Variable(xavier_init([32], stddev=stddev)),
-            'b_conv2': tf.Variable(xavier_init([32], stddev=stddev)),
+            'b_conv2': tf.Variable(xavier_init([64], stddev=stddev)),
             'b_conv3': tf.Variable(xavier_init([32], stddev=stddev)),
             'b_conv4': tf.Variable(xavier_init([32], stddev=stddev)),
             'b_fc_1': tf.Variable(xavier_init([512], stddev=stddev)),
-            'b_fc_2': tf.Variable(xavier_init([1], stddev=stddev)),
-            'b_fc_3': tf.Variable(xavier_init([1], stddev=stddev)),
+            'b_fc_2': tf.Variable(xavier_init([512], stddev=stddev)),
+            'b_fc_3': tf.Variable(xavier_init([256], stddev=stddev)),
             'out': tf.Variable(xavier_init([1], stddev=stddev))
     }
 
     conv1 = tf.nn.leaky_relu(conv2d(x, weights['W_conv1']) +  biases['b_conv1'])
     pool1 = maxpool2d(conv1)
 
-    conv2 = tf.nn.leaky_relu(conv2d(pool1, weights['W_conv2'] + biases['b_conv2']))
-    pool2 = maxpool2d(conv2)
+    #conv2 = tf.nn.leaky_relu(conv2d(pool1, weights['W_conv2'] + biases['b_conv2']))
+    #pool2 = maxpool2d(conv2)
 
-    fc = tf.reshape(pool2, [-1, 15 * 20 * 32])
+    #conv3 = tf.nn.leaky_relu(conv2d(pool2, weights['W_conv3'] + biases['b_conv3']))
+    #pool3 = maxpool2d(conv3)
+
+    fc = tf.reshape(pool1, [-1, 30 * 40 * 32])
     fc1 = tf.nn.leaky_relu(tf.matmul(fc, weights['W_fc_1'] + biases['b_fc_1']))
     #fc2 = tf.nn.leaky_relu(tf.matmul(fc1, weights['W_fc_2'] + biases['b_fc_2']))
     #fc3 = tf.nn.leaky_relu(tf.matmul(fc2, weights['W_fc_3'] + biases['b_fc_3']))
@@ -95,9 +98,10 @@ def train_neural_network(y, optimizer, cost):
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
-        train_writer = tf.summary.FileWriter("./logs_baseline/train")
-        validation_writer = tf.summary.FileWriter("./logs_baseline/validation")
+        train_writer = tf.summary.FileWriter("./final_reg/train")
+        validation_writer = tf.summary.FileWriter("./final_reg/validation")
         for epoch in range(hm_epochs):
+            print("EPOCH: ", epoch)
             sess.run(ds_train_iterator.initializer)
             m = None
             while True:
@@ -115,28 +119,48 @@ def train_neural_network(y, optimizer, cost):
                     while True:
                         try:
                             elem_val = sess.run(validation_next_element)
-                            merge = tf.summary.merge_all()
-                            _, c, m, mm, mean_squared = sess.run([optimizer, cost, merge, mean_squared_error, mean_squared_error_update], feed_dict={x: elem_val[0], y: elem_val[1], keep_prob: 1.0})
-                            print(mm)
+                           # merge = tf.summary.merge_all()
+                            mm, mean_squared, _ = sess.run([merge, mean_squared_error, mean_squared_error_update], feed_dict={x: elem_val[0], y: elem_val[1], keep_prob: 1.0})
                         except tf.errors.OutOfRangeError:
-                            validation_writer.add_summary(m, epoch)
+                            validation_writer.add_summary(mm, epoch)
                             print("Validation loss ", mean_squared)
                             break
                     break
         sess.run(ds_test_iterator.initializer)
+        #sess.run(ds_train_iterator.initializer)
+        #sess.run(ds_validation_iterator.initializer)
         test_loss = 0                    
-        test_dist_out = open("test_dist_out", "w")
+        test_dist_out = open("test_dist_out_2pool", "w")
+        all_dist_out = open("all_dist_out_2pool", "w")
         while True:
             print("Start test")
             try:
                 elem_test = sess.run(test_next_element)
-                _, c, test_loss = sess.run([optimizer, cost, mean_squared_error_update], feed_dict={x: elem_test[0], y: elem_test[1], keep_prob: 1.0})
                 p = prediction.eval(feed_dict={x: elem_test[0], keep_prob: 1.0})
                 for i in range(len(p)):
                     test_dist_out.write(str(p[i][0]) + " " + str(elem_test[1][i]) + "\n")
+                    all_dist_out.write(str(p[i][0]) + " " + str(elem_test[1][i]) + "\n")
             except tf.errors.OutOfRangeError:
                 print("TEST LOSS: ", test_loss)
                 break
+        """
+        while True:
+            try:
+                elem_train = sess.run(train_next_element)
+                p = prediction.eval(feed_dict={x: elem_train[0], keep_prob: 1.0})
+                for i in range(len(p)):
+                    all_dist_out.write(str(p[i][0]) + " " + str(elem_train[1][i]) + "\n")
+            except tf.errors.OutOfRangeError:
+                break
+        while True:
+            try:
+                elem_validation = sess.run(validation_next_element)
+                p = prediction.eval(feed_dict={x: elem_validation[0], keep_prob: 1.0})
+                for i in range(len(p)):
+                    all_dist_out.write(str(p[i][0]) + " " + str(elem_validation[1][i]) + "\n")
+            except tf.errors.OutOfRangeError:
+                break
+        """
 """
 :: START OF EXECUTION ::
 """
@@ -148,7 +172,7 @@ Initilize phase
     n_classes : left = 0, center = 1, right = 2.
 
 """
-batch_size = 10
+batch_size = 32
 n_classes = 1
 image_width = 320
 image_height = 240
