@@ -51,8 +51,8 @@ def cnn(x, n_classes, keep_prob):
             'W_conv2': tf.Variable(xavier_init([5, 5,   32, 32], stddev=stddev)),
             'W_conv3': tf.Variable(xavier_init([5, 5, 32, 32], stddev=stddev)),
             'W_conv4': tf.Variable(xavier_init([5, 5, 32, 32], stddev=stddev)),
-            'W_fc_1': tf.Variable(xavier_init([15 * 20 * 32, 1], stddev=stddev)),
-            'W_fc_2': tf.Variable(xavier_init([1024, 512], stddev=stddev)),
+            'W_fc_1': tf.Variable(xavier_init([15 * 20 * 32, 512], stddev=stddev)),
+            'W_fc_2': tf.Variable(xavier_init([512, 256], stddev=stddev)),
             'W_fc_3': tf.Variable(xavier_init([15 * 20 * 32, 1], stddev=stddev)),
             'out': tf.Variable(xavier_init([512, 1], stddev=stddev))
     }
@@ -63,27 +63,25 @@ def cnn(x, n_classes, keep_prob):
             'b_conv2': tf.Variable(xavier_init([32], stddev=stddev)),
             'b_conv3': tf.Variable(xavier_init([32], stddev=stddev)),
             'b_conv4': tf.Variable(xavier_init([32], stddev=stddev)),
-            'b_fc_1': tf.Variable(xavier_init([1], stddev=stddev)),
-            'b_fc_2': tf.Variable(xavier_init([512], stddev=stddev)),
+            'b_fc_1': tf.Variable(xavier_init([512], stddev=stddev)),
+            'b_fc_2': tf.Variable(xavier_init([1], stddev=stddev)),
             'b_fc_3': tf.Variable(xavier_init([1], stddev=stddev)),
             'out': tf.Variable(xavier_init([1], stddev=stddev))
     }
 
     conv1 = tf.nn.leaky_relu(conv2d(x, weights['W_conv1']) +  biases['b_conv1'])
-    conv2 = tf.nn.leaky_relu(conv2d(conv1, weights['W_conv2']) +  biases['b_conv2'])
-    conv2 = maxpool2d(conv1)
+    pool1 = maxpool2d(conv1)
 
-    conv3 = tf.nn.leaky_relu(conv2d(conv2, weights['W_conv3'] + biases['b_conv3']))
-    conv4 = tf.nn.leaky_relu(conv2d(conv3, weights['W_conv4'] + biases['b_conv4']))
-    conv4 = maxpool2d(conv4)
+    conv2 = tf.nn.leaky_relu(conv2d(pool1, weights['W_conv2'] + biases['b_conv2']))
+    pool2 = maxpool2d(conv2)
 
-    fc = tf.reshape(conv4, [-1, 15 * 20 * 32])
+    fc = tf.reshape(pool2, [-1, 15 * 20 * 32])
     fc1 = tf.nn.leaky_relu(tf.matmul(fc, weights['W_fc_1'] + biases['b_fc_1']))
     #fc2 = tf.nn.leaky_relu(tf.matmul(fc1, weights['W_fc_2'] + biases['b_fc_2']))
     #fc3 = tf.nn.leaky_relu(tf.matmul(fc2, weights['W_fc_3'] + biases['b_fc_3']))
     #fc = tf.nn.dropout(fc, keep_prob)
-    #output = tf.matmul(fc2, weights['out'] + biases['out'])
-    return fc1
+    output = tf.matmul(fc1, weights['out'] + biases['out'])
+    return output
 
 def conv2d(x, W):
     return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
@@ -97,8 +95,8 @@ def train_neural_network(y, optimizer, cost):
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
-        train_writer = tf.summary.FileWriter("./logs/train")
-        validation_writer = tf.summary.FileWriter("./logs/validation")
+        train_writer = tf.summary.FileWriter("./logs_baseline/train")
+        validation_writer = tf.summary.FileWriter("./logs_baseline/validation")
         for epoch in range(hm_epochs):
             sess.run(ds_train_iterator.initializer)
             m = None
@@ -106,9 +104,9 @@ def train_neural_network(y, optimizer, cost):
                 try:
                     merge = tf.summary.merge_all()
                     elem = sess.run(train_next_element)
-                    _, c, m, mm, mean_squared = sess.run([optimizer, cost, merge, mean_squared_error, mean_squared_error_update], feed_dict={x: elem[0], y: elem[1], keep_prob: 0.8})
-                    print(mm)
+                    _, c, m, mean_squared, mean_absolute= sess.run([optimizer, cost, merge, mean_squared_error_update, mean_absolute_error_update], feed_dict={x: elem[0], y: elem[1], keep_prob: 0.8})
                     print(mean_squared)
+                    print(mean_absolute)
                 except tf.errors.OutOfRangeError:
                     train_writer.add_summary(m, epoch)
                     print("Train loss: ", mean_squared)
@@ -150,11 +148,11 @@ Initilize phase
     n_classes : left = 0, center = 1, right = 2.
 
 """
-batch_size = 256
+batch_size = 10
 n_classes = 1
 image_width = 320
 image_height = 240
-hm_epochs = 50
+hm_epochs = 5
 print("Setting up")
 
 ds_test = tf.data.TextLineDataset("test.csv").skip(1)
@@ -220,8 +218,8 @@ Computes the mean of elements across dimensions of a tensor.
 
 https://www.tensorflow.org/api_docs/python/tf/reduce_mean
 """
-mean_absolute_error, mean_absolute_error_update = tf.metrics.mean_absolute_error(y, prediction)
-mean_squared_error, mean_squared_error_update = tf.metrics.mean_squared_error(y, prediction)
+mean_absolute_error, mean_absolute_error_update = tf.metrics.mean_absolute_error(y, prediction[:,0])
+mean_squared_error, mean_squared_error_update = tf.metrics.mean_squared_error(y, prediction[:,0])
 out = tf.losses.mean_squared_error(y, prediction[:, 0])
 cost = tf.reduce_mean(out)
 tf.summary.scalar("Mean Absolute Error", mean_absolute_error)
