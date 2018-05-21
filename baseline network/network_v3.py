@@ -100,13 +100,14 @@ def train_neural_network(y, optimizer, cost):
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
-        train_writer = tf.summary.FileWriter('./logs1/train', sess.graph)
-        validation_writer = tf.summary.FileWriter('./logs1/validation', sess.graph)
+        train_writer = tf.summary.FileWriter('./1pool_1conv/train', sess.graph)
+        validation_writer = tf.summary.FileWriter('./1pool_1conv/validation', sess.graph)
         for epoch in range(hm_epochs):
             sess.run(ds_train_iterator.initializer)
             epoch_loss = 0
             #count = 0
             epoch_accuracy = 0
+            train_summary = None
             while True:
                 try:
                     elem = sess.run(train_next_element)
@@ -129,24 +130,25 @@ def train_neural_network(y, optimizer, cost):
                     """
                     merge = tf.summary.merge_all()
                     _, c = sess.run([optimizer, cost], feed_dict={x: elem[0], y: elem[1], keep_prob: 0.8})
-                    _, epoch_accuracy, summary, mean_err = sess.run([avg_acc_train, avg_acc_train_update, merge, mean_error_train_update], feed_dict={x: elem[0], y: elem[1], keep_prob: 0.8})
-                    train_writer.add_summary(summary, epoch)
+                    _, epoch_accuracy, train_summary, mean_err = sess.run([avg_acc_train, avg_acc_train_update, merge, mean_error_train_update], feed_dict={x: elem[0], y: elem[1], keep_prob: 0.8})
                     #epoch_loss += c
                     #count += 1
                     print("loss: ", mean_err)
                     epoch_loss = mean_err
                 except tf.errors.OutOfRangeError:
+                    train_writer.add_summary(train_summary, epoch)
                     s = 5
                     epoch_validation_accuracy = 0
                     mean_err_validation = 0
                     sess.run(ds_validation_iterator.initializer)
+                    validation_summary = None
                     while True:
                         try:
                             elem_validation = sess.run(validation_next_element)
                             merge = tf.summary.merge_all()
-                            _, epoch_validation_accuracy, summary, mean_err_validation, _ = sess.run([avg_acc_validation, avg_acc_validation_update, merge, mean_error_validation, mean_error_validation_update], feed_dict={x: elem_validation[0], y: elem_validation[1], keep_prob: 1.0})
-                            validation_writer.add_summary(summary, epoch)
+                            _, epoch_validation_accuracy, validation_summary, mean_err_validation, _ = sess.run([avg_acc_validation, avg_acc_validation_update, merge, mean_error_validation, mean_error_validation_update], feed_dict={x: elem_validation[0], y: elem_validation[1], keep_prob: 1.0})
                         except tf.errors.OutOfRangeError:
+                            validation_writer.add_summary(validation_summary, epoch)
                             break
                     print("End of epoch.")
                     print("Train loss: ", epoch_loss)
@@ -187,7 +189,7 @@ batch_size = 32
 n_classes = 3
 image_width = 320
 image_height = 240
-hm_epochs = 3
+hm_epochs = 30
 print("Setting up")
 
 ds_test = tf.data.TextLineDataset("test.csv").skip(1)
