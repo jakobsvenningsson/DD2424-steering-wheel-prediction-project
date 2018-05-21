@@ -49,8 +49,8 @@ def cnn(x, n_classes, keep_prob):
     weights = {
             'W_conv1': tf.Variable(xavier_init([3, 3, 3, 32], stddev=stddev)),
             'W_conv2': tf.Variable(xavier_init([3, 3, 32, 64], stddev=stddev)),
-            #'W_conv3': tf.Variable(xavier_init([5, 5, 32, 32], stddev=stddev)),
-            #'W_conv4': tf.Variable(xavier_init([5, 5, 32, 32], stddev=stddev)),
+            'W_conv3': tf.Variable(xavier_init([5, 5, 64, 64], stddev=stddev)),
+            'W_conv4': tf.Variable(xavier_init([5, 5, 64, 64], stddev=stddev)),
             'W_fc_1': tf.Variable(xavier_init([30 * 40 * 32, 512], stddev=stddev)),
             'W_fc_2': tf.Variable(xavier_init([512, 512], stddev=stddev)),
             'W_fc_3': tf.Variable(xavier_init([512, 256], stddev=stddev)),
@@ -61,8 +61,8 @@ def cnn(x, n_classes, keep_prob):
     biases = {
             'b_conv1': tf.Variable(xavier_init([32], stddev=stddev)),
             'b_conv2': tf.Variable(xavier_init([64], stddev=stddev)),
-            'b_conv3': tf.Variable(xavier_init([32], stddev=stddev)),
-            'b_conv4': tf.Variable(xavier_init([32], stddev=stddev)),
+            'b_conv3': tf.Variable(xavier_init([64], stddev=stddev)),
+            'b_conv4': tf.Variable(xavier_init([64], stddev=stddev)),
             'b_fc_1': tf.Variable(xavier_init([512], stddev=stddev)),
             'b_fc_2': tf.Variable(xavier_init([512], stddev=stddev)),
             'b_fc_3': tf.Variable(xavier_init([256], stddev=stddev)),
@@ -71,6 +71,13 @@ def cnn(x, n_classes, keep_prob):
 
     conv1 = tf.nn.leaky_relu(conv2d(x, weights['W_conv1']) +  biases['b_conv1'])
     pool1 = maxpool2d(conv1)
+
+#    conv2 = tf.nn.leaky_relu(conv2d(pool1, weights['W_conv2']) +  biases['b_conv2'])
+#    pool2 = maxpool2d(conv2)
+
+ #   conv3 = tf.nn.leaky_relu(conv2d(pool2, weights['W_conv3']) +  biases['b_conv3'])
+ #   pool3 = maxpool2d(conv3)
+
 
     #conv2 = tf.nn.leaky_relu(conv2d(pool1, weights['W_conv2'] + biases['b_conv2']))
     #pool2 = maxpool2d(conv2)
@@ -92,8 +99,23 @@ def conv2d(x, W):
 def maxpool2d(x):
     return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
 
-def train_neural_network(y, optimizer, cost):
+def calculateLoss(iterator, sess, loss_update, next_element, writer, epoch):
+    sess.run(iterator.initializer)
+    merge = tf.summary.merge_all()
+    summary = None
+    acc = 0
+    loss = 0
+    while True:
+        try:
+            elem = sess.run(next_element)
+            loss, summary = sess.run([loss_update, merge], feed_dict={x: elem[0], y: elem[1], keep_prob: 0.8})
+        except tf.errors.OutOfRangeError:
+            if writer != None:
+                writer.add_summary(summary, epoch)
+            break
+    return loss
 
+def train_neural_network(y, optimizer, cost):
     print("Training starts.")
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
@@ -101,39 +123,29 @@ def train_neural_network(y, optimizer, cost):
         train_writer = tf.summary.FileWriter("./final_reg/train")
         validation_writer = tf.summary.FileWriter("./final_reg/validation")
         for epoch in range(hm_epochs):
-            print("EPOCH: ", epoch)
             sess.run(ds_train_iterator.initializer)
-            m = None
+            test_loss = 0
             while True:
                 try:
-                    merge = tf.summary.merge_all()
                     elem = sess.run(train_next_element)
-                    _, c, m, mean_squared, mean_absolute= sess.run([optimizer, cost, merge, mean_squared_error_update, mean_absolute_error_update], feed_dict={x: elem[0], y: elem[1], keep_prob: 0.8})
-                    print(mean_squared)
-                    print(mean_absolute)
+                    _, c = sess.run([optimizer, cost], feed_dict={x: elem[0], y: elem[1], keep_prob: 0.8})
                 except tf.errors.OutOfRangeError:
-                    train_writer.add_summary(m, epoch)
-                    print("Train loss: ", mean_squared)
-                    sess.run(ds_validation_iterator.initializer)
-                    m = None
-                    while True:
-                        try:
-                            elem_val = sess.run(validation_next_element)
-                           # merge = tf.summary.merge_all()
-                            mm, mean_squared, _ = sess.run([merge, mean_squared_error, mean_squared_error_update], feed_dict={x: elem_val[0], y: elem_val[1], keep_prob: 1.0})
-                        except tf.errors.OutOfRangeError:
-                            validation_writer.add_summary(mm, epoch)
-                            print("Validation loss ", mean_squared)
-                            break
+                    # Calculate train acc and loss
+                    loss = calculateLoss(ds_train_iterator, sess, mean_error_train_update, train_next_element, train_writer, epoch)
+                    print("Train loss: ", loss)
+                    # Calculate validation acc and loss
+                    loss = calculateLoss(ds_validation_iterator, sess, mean_error_validation_update, validation_next_element, validation_writer, epoch)
+                    print("Validation loss: ", loss)
+                    test_loss = calculateLoss(ds_test_iterator, sess, mean_error_test_update, test_next_element, None, -1)
                     break
+        print("test loss: ", test_loss)
+
         sess.run(ds_test_iterator.initializer)
-        #sess.run(ds_train_iterator.initializer)
-        #sess.run(ds_validation_iterator.initializer)
-        test_loss = 0                    
+        sess.run(ds_train_iterator.initializer)
+        sess.run(ds_validation_iterator.initializer)
         test_dist_out = open("test_dist_out_2pool", "w")
         all_dist_out = open("all_dist_out_2pool", "w")
         while True:
-            print("Start test")
             try:
                 elem_test = sess.run(test_next_element)
                 p = prediction.eval(feed_dict={x: elem_test[0], keep_prob: 1.0})
@@ -141,9 +153,9 @@ def train_neural_network(y, optimizer, cost):
                     test_dist_out.write(str(p[i][0]) + " " + str(elem_test[1][i]) + "\n")
                     all_dist_out.write(str(p[i][0]) + " " + str(elem_test[1][i]) + "\n")
             except tf.errors.OutOfRangeError:
-                print("TEST LOSS: ", test_loss)
                 break
-        """
+
+       
         while True:
             try:
                 elem_train = sess.run(train_next_element)
@@ -160,7 +172,7 @@ def train_neural_network(y, optimizer, cost):
                     all_dist_out.write(str(p[i][0]) + " " + str(elem_validation[1][i]) + "\n")
             except tf.errors.OutOfRangeError:
                 break
-        """
+        
 """
 :: START OF EXECUTION ::
 """
@@ -176,7 +188,7 @@ batch_size = 32
 n_classes = 1
 image_width = 320
 image_height = 240
-hm_epochs = 5
+hm_epochs = 20
 print("Setting up")
 
 ds_test = tf.data.TextLineDataset("test.csv").skip(1)
@@ -242,14 +254,17 @@ Computes the mean of elements across dimensions of a tensor.
 
 https://www.tensorflow.org/api_docs/python/tf/reduce_mean
 """
-mean_absolute_error, mean_absolute_error_update = tf.metrics.mean_absolute_error(y, prediction[:,0])
-mean_squared_error, mean_squared_error_update = tf.metrics.mean_squared_error(y, prediction[:,0])
-out = tf.losses.mean_squared_error(y, prediction[:, 0])
+mean_absolute_error_train, mean_absolute_error_update_train = tf.metrics.mean_absolute_error(y, prediction[:,0])
+mean_absolute_error_validation, mean_absolute_error_update_validation = tf.metrics.mean_absolute_error(y, prediction[:,0])
+
+mean_error_train, mean_error_train_update = tf.metrics.mean_squared_error(y, prediction[:,0])
+mean_error_validation, mean_error_validation_update = tf.metrics.mean_squared_error(y, prediction[:,0])
+mean_error_test, mean_error_test_update = tf.metrics.mean_squared_error(y, prediction[:,0])
+mean_error_test2, mean_error_test2_update = tf.metrics.mean_squared_error(y, prediction[:,0])
+tf.summary.scalar("mean loss train", mean_error_train)
+tf.summary.scalar("mean loss validation", mean_error_validation)
+out = tf.losses.mean_squared_error(y, prediction[:,0])
 cost = tf.reduce_mean(out)
-tf.summary.scalar("Mean Absolute Error", mean_absolute_error)
-tf.summary.scalar("Mean Squared Error", mean_squared_error)
-
-
 
 """
 Optimizer
