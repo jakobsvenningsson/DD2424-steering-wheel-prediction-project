@@ -51,7 +51,7 @@ def cnn(x, n_classes, keep_prob):
             'W_conv4': tf.Variable(xavier_init([3, 3, 64, 64])),
             #'W_conv5': tf.Variable(xavier_init([5, 5, 32, 32])),
             #'W_conv6': tf.Variable(xavier_init([5, 5, 32, 32])),
-            'W_fc': tf.Variable(xavier_init([15 * 20 * 64, 512])),
+            'W_fc': tf.Variable(xavier_init([30 * 40 * 32, 512])),
             'out': tf.Variable(xavier_init([512, n_classes]))
     }
 
@@ -68,15 +68,10 @@ def cnn(x, n_classes, keep_prob):
     }
 
     conv1 = tf.nn.leaky_relu(conv2d(x, weights['W_conv1']) +  biases['b_conv1'])
-    conv2 = tf.nn.leaky_relu(conv2d(conv1, weights['W_conv2']) +  biases['b_conv2'])
-    pool1 = maxpool2d(conv2)
-
-    conv3 = tf.nn.leaky_relu(conv2d(pool1, weights['W_conv3'] + biases['b_conv3']))
-    conv4 = tf.nn.leaky_relu(conv2d(conv3, weights['W_conv4'] + biases['b_conv4']))
-    pool2 = maxpool2d(conv4)
+    pool1 = maxpool2d(conv1)
 
 
-    fc = tf.reshape(pool2, [-1, 15 * 20 * 64])
+    fc = tf.reshape(pool1, [-1, 30 * 40 * 32])
     fc = tf.nn.leaky_relu(tf.matmul(fc, weights['W_fc'] + biases['b_fc']))
     #fc = tf.nn.dropout(fc, keep_prob)
     output = tf.matmul(fc, weights['out'] + biases['out'])
@@ -109,7 +104,7 @@ def train_neural_network(y, optimizer, cost):
         validation_writer = tf.summary.FileWriter('./logs1/validation', sess.graph)
         for epoch in range(hm_epochs):
             sess.run(ds_train_iterator.initializer)
-            #epoch_loss = 0
+            epoch_loss = 0
             #count = 0
             epoch_accuracy = 0
             while True:
@@ -134,29 +129,28 @@ def train_neural_network(y, optimizer, cost):
                     """
                     merge = tf.summary.merge_all()
                     _, c = sess.run([optimizer, cost], feed_dict={x: elem[0], y: elem[1], keep_prob: 0.8})
-                    #_, c = sess.run([optimizer, cost], feed_dict={x: sample_x, y: sample_y, keep_prob: 0.8})
-                    #_, epoch_accuracy, summary, mean_err = sess.run([avg_acc, avg_acc_update, merge, mean_error_update], feed_dict={x: sample_x, y: sample_y, keep_prob: 0.8})
-                    _, epoch_accuracy, summary, mean_err = sess.run([avg_acc, avg_acc_update, merge, mean_error_update], feed_dict={x: elem[0], y: elem[1], keep_prob: 0.8})
+                    _, epoch_accuracy, summary, mean_err = sess.run([avg_acc_train, avg_acc_train_update, merge, mean_error_train_update], feed_dict={x: elem[0], y: elem[1], keep_prob: 0.8})
                     train_writer.add_summary(summary, epoch)
                     #epoch_loss += c
                     #count += 1
                     print("loss: ", mean_err)
-                    #print(epoch_loss)
+                    epoch_loss = mean_err
                 except tf.errors.OutOfRangeError:
                     s = 5
                     epoch_validation_accuracy = 0
+                    mean_err_validation = 0
                     sess.run(ds_validation_iterator.initializer)
                     while True:
                         try:
                             elem_validation = sess.run(validation_next_element)
                             merge = tf.summary.merge_all()
-                            _, c = sess.run([optimizer, cost], feed_dict={x: elem_validation[0], y: elem_validation[1], keep_prob: 1.0})
-                            _, epoch_validation_accuracy, summary, mean_err = sess.run([avg_acc, avg_acc_update, merge, mean_error_update], feed_dict={x: elem_validation[0], y: elem_validation[1], keep_prob: 1.0})
-                            predictions = prediction.eval(feed_dict = {x: elem_validation[0], keep_prob: 1.0})
+                            _, epoch_validation_accuracy, summary, mean_err_validation, _ = sess.run([avg_acc_validation, avg_acc_validation_update, merge, mean_error_validation, mean_error_validation_update], feed_dict={x: elem_validation[0], y: elem_validation[1], keep_prob: 1.0})
                             validation_writer.add_summary(summary, epoch)
                         except tf.errors.OutOfRangeError:
                             break
                     print("End of epoch.")
+                    print("Train loss: ", epoch_loss)
+                    print("Validation loss: ", mean_err_validation)
                     print("Train accuracy; ", epoch_accuracy)
                     print("validation accuracy: ", epoch_validation_accuracy)
                     break
@@ -167,7 +161,7 @@ def train_neural_network(y, optimizer, cost):
         while True:
             try:
                 elem_test = sess.run(test_next_element)
-                _, epoch_test_accuracy = sess.run([avg_acc, avg_acc_update], feed_dict={x: elem_test[0], y: elem_test[1], keep_prob: 1.0})
+                _, epoch_test_accuracy = sess.run([avg_acc_test, avg_acc_test_update], feed_dict={x: elem_test[0], y: elem_test[1], keep_prob: 1.0})
             except tf.errors.OutOfRangeError:
                 break
         print("TEST ACCURACY: ", epoch_test_accuracy)
@@ -189,11 +183,11 @@ Initilize phase
     n_classes : left = 0, center = 1, right = 2.
 
 """
-batch_size = 256
+batch_size = 32
 n_classes = 3
 image_width = 320
 image_height = 240
-hm_epochs = 80
+hm_epochs = 3
 print("Setting up")
 
 ds_test = tf.data.TextLineDataset("test.csv").skip(1)
@@ -248,7 +242,9 @@ Calculates how often predictions matches labels (y)
 
 https://www.tensorflow.org/api_docs/python/tf/metrics/accuracy
 """
-avg_acc, avg_acc_update = tf.metrics.accuracy(tf.argmax(y,1), tf.argmax(prediction, 1))
+avg_acc_train, avg_acc_train_update = tf.metrics.accuracy(tf.argmax(y,1), tf.argmax(prediction, 1))
+avg_acc_validation, avg_acc_validation_update = tf.metrics.accuracy(tf.argmax(y,1), tf.argmax(prediction, 1))
+avg_acc_test, avg_acc_test_update = tf.metrics.accuracy(tf.argmax(y,1), tf.argmax(prediction, 1))
 
 # LEGACY CODE
 #tf.summary.histogram("Accuracy Histogram", update_)
@@ -259,7 +255,9 @@ Outputs a Summary protocol buffer containing a single scalar value
 
 https://www.tensorflow.org/api_docs/python/tf/summary/scalar
 """
-tf.summary.scalar("Accuracy Scalar", avg_acc)
+tf.summary.scalar("Accuracy train", avg_acc_train)
+tf.summary.scalar("Accuracy validation", avg_acc_validation)
+tf.summary.scalar("Accuracy test", avg_acc_test)
 #class_weights = tf.constant([0.8, 0.8, 1.0])
 #out = tf.nn.weighted_cross_entropy_with_logits(logits=prediction, targets=y, pos_weight=class_weights)'
 """
@@ -269,9 +267,10 @@ Computes the mean of elements across dimensions of a tensor.
 https://www.tensorflow.org/api_docs/python/tf/reduce_mean
 """
 cost = tf.reduce_mean(out)
-mean_error, mean_error_update = tf.metrics.mean_absolute_error(tf.argmax(y,1), tf.argmax(prediction, 1))
-tf.summary.scalar("mean loss", mean_error)
-tf.summary.scalar("Loss", cost)
+mean_error_train, mean_error_train_update = tf.metrics.mean_absolute_error(tf.argmax(y,1), tf.argmax(prediction, 1))
+mean_error_validation, mean_error_validation_update = tf.metrics.mean_absolute_error(tf.argmax(y,1), tf.argmax(prediction, 1))
+tf.summary.scalar("mean loss train", mean_error_train)
+tf.summary.scalar("mean loss validation", mean_error_validation)
 
 
 
