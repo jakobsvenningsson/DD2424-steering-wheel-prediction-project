@@ -46,19 +46,19 @@ def cnn(x, n_classes, keep_prob):
     xavier_init = tf.keras.initializers.he_normal()
     weights = {
             'W_conv1': tf.Variable(xavier_init([3, 3, 3, 32])),
-            'W_conv2': tf.Variable(xavier_init([3, 3, 32, 32])),
+            'W_conv2': tf.Variable(xavier_init([3, 3, 32, 64])),
             'W_conv3': tf.Variable(xavier_init([3, 3, 32, 64])),
             'W_conv4': tf.Variable(xavier_init([3, 3, 64, 64])),
             #'W_conv5': tf.Variable(xavier_init([5, 5, 32, 32])),
             #'W_conv6': tf.Variable(xavier_init([5, 5, 32, 32])),
-            'W_fc': tf.Variable(xavier_init([30 * 40 * 32, 512])),
+            'W_fc': tf.Variable(xavier_init([15 * 20 * 64, 512])),
             'out': tf.Variable(xavier_init([512, n_classes]))
     }
 
 
     biases = {
             'b_conv1': tf.Variable(xavier_init([32])),
-            'b_conv2': tf.Variable(xavier_init([32])),
+            'b_conv2': tf.Variable(xavier_init([64])),
             'b_conv3': tf.Variable(xavier_init([64])),
             'b_conv4': tf.Variable(xavier_init([64])),
             #'b_conv5': tf.Variable(xavier_init([32])),
@@ -69,9 +69,11 @@ def cnn(x, n_classes, keep_prob):
 
     conv1 = tf.nn.leaky_relu(conv2d(x, weights['W_conv1']) +  biases['b_conv1'])
     pool1 = maxpool2d(conv1)
+    conv2 = tf.nn.leaky_relu(conv2d(pool1, weights['W_conv2']) +  biases['b_conv2'])
+    pool2 = maxpool2d(conv2)
 
 
-    fc = tf.reshape(pool1, [-1, 30 * 40 * 32])
+    fc = tf.reshape(pool2, [-1, 15 * 20 * 64])
     fc = tf.nn.leaky_relu(tf.matmul(fc, weights['W_fc'] + biases['b_fc']))
     #fc = tf.nn.dropout(fc, keep_prob)
     output = tf.matmul(fc, weights['out'] + biases['out'])
@@ -83,97 +85,48 @@ def conv2d(x, W):
 def maxpool2d(x):
     return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
 
+def calculateAccAndLoss(iterator, sess, acc_update, loss_update, next_element, writer, epoch):
+    sess.run(iterator.initializer)
+    merge = tf.summary.merge_all()
+    summary = None
+    acc = 0
+    loss = 0
+    while True:
+        try:
+            elem = sess.run(next_element)
+            acc, loss, summary = sess.run([acc_update, loss_update, merge], feed_dict={x: elem[0], y: elem[1], keep_prob: 0.8})
+        except tf.errors.OutOfRangeError:
+            if writer != None:
+                writer.add_summary(summary, epoch) 
+            break
+    return acc, loss
 def train_neural_network(y, optimizer, cost):
-    #_cost_train = []
-    #_cost_validation = []
-    #_accuracy_train = []
-    #_accuracy_validation = []
-
-    #_out_loss_train = open("loss_train.out","w")
-    #_out_loss_validation = open("loss_validation.out","w")
-
-    #_out_acc_train = open("acc_train.out","w")
-    #_out_acc_validation = open("acc_validation.out","w")
-
     _out_final_accuracy = open("final_acc_test2.out", "w")
     print("Training starts.")
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
-        train_writer = tf.summary.FileWriter('./1pool_1conv/train', sess.graph)
-        validation_writer = tf.summary.FileWriter('./1pool_1conv/validation', sess.graph)
+        train_writer = tf.summary.FileWriter('./2pool_2conv/train', sess.graph)
+        validation_writer = tf.summary.FileWriter('./2pool_2conv/validation', sess.graph)
         for epoch in range(hm_epochs):
             sess.run(ds_train_iterator.initializer)
-            epoch_loss = 0
-            #count = 0
-            epoch_accuracy = 0
-            train_summary = None
+            test_acc = 0
+            test_loss = 0
             while True:
                 try:
                     elem = sess.run(train_next_element)
-                    """
-                    sample_x = []
-                    sample_y = []
-                    for i, e in enumerate(elem[1]):
-                        if e[0] == 1:
-                            if np.random.random_sample() > 0.5:
-                                sample_x.append(elem[0][i])
-                                sample_y.append(e)
-                        elif e[1] == 1:
-                            if np.random.random_sample() > 0.5:
-                                sample_x.append(elem[0][i])
-                                sample_y.append(e)
-                        else:
-                            sample_x.append(elem[0][i])
-                            sample_y.append(e)
-                    
-                    """
-                    merge = tf.summary.merge_all()
                     _, c = sess.run([optimizer, cost], feed_dict={x: elem[0], y: elem[1], keep_prob: 0.8})
-                    _, epoch_accuracy, train_summary, mean_err = sess.run([avg_acc_train, avg_acc_train_update, merge, mean_error_train_update], feed_dict={x: elem[0], y: elem[1], keep_prob: 0.8})
-                    #epoch_loss += c
-                    #count += 1
-                    print("loss: ", mean_err)
-                    epoch_loss = mean_err
                 except tf.errors.OutOfRangeError:
-                    train_writer.add_summary(train_summary, epoch)
-                    s = 5
-                    epoch_validation_accuracy = 0
-                    mean_err_validation = 0
-                    sess.run(ds_validation_iterator.initializer)
-                    validation_summary = None
-                    while True:
-                        try:
-                            elem_validation = sess.run(validation_next_element)
-                            merge = tf.summary.merge_all()
-                            _, epoch_validation_accuracy, validation_summary, mean_err_validation, _ = sess.run([avg_acc_validation, avg_acc_validation_update, merge, mean_error_validation, mean_error_validation_update], feed_dict={x: elem_validation[0], y: elem_validation[1], keep_prob: 1.0})
-                        except tf.errors.OutOfRangeError:
-                            validation_writer.add_summary(validation_summary, epoch)
-                            break
-                    print("End of epoch.")
-                    print("Train loss: ", epoch_loss)
-                    print("Validation loss: ", mean_err_validation)
-                    print("Train accuracy; ", epoch_accuracy)
-                    print("validation accuracy: ", epoch_validation_accuracy)
+                    # Calculate train acc and loss
+                    acc, loss = calculateAccAndLoss(ds_train_iterator, sess, avg_acc_train_update, mean_error_train_update, train_next_element, train_writer, epoch)
+                    print("Train acc: ", acc, " Train loss: ", loss)
+                    # Calculate validation acc and loss
+                    acc, loss = calculateAccAndLoss(ds_validation_iterator, sess, avg_acc_validation_update, mean_error_validation_update, validation_next_element, validation_writer, epoch)
+                    print("Validation acc: ", acc, " Validation loss: ", loss)
+                    test_acc, test_loss = calculateAccAndLoss(ds_test_iterator, sess, avg_acc_test_update, mean_error_test_update, test_next_element, None, -1)
                     break
-            print('Epoch', epoch, 'completed out of',hm_epochs)
-        s = 10
-        epoch_test_accuracy = 0
-        sess.run(ds_test_iterator.initializer)
-        while True:
-            try:
-                elem_test = sess.run(test_next_element)
-                _, epoch_test_accuracy = sess.run([avg_acc_test, avg_acc_test_update], feed_dict={x: elem_test[0], y: elem_test[1], keep_prob: 1.0})
-            except tf.errors.OutOfRangeError:
-                break
-        print("TEST ACCURACY: ", epoch_test_accuracy)
-        _out_final_accuracy.write(str(epoch_test_accuracy) + "\n")
-
-    #print(_cost_train)
-    #print(_cost_validation)
-    #print(_accuracy_train)
-    #print(_accuracy_validation)
-
+        print("Test: ", test_acc, " test loss: ", test_loss)
+        _out_final_accuracy.write(str(test_acc) + "\n")
 """
 :: START OF EXECUTION ::
 """
@@ -187,9 +140,7 @@ Initilize phase
 """
 batch_size = 32
 n_classes = 3
-image_width = 320
-image_height = 240
-hm_epochs = 30
+hm_epochs = 3
 print("Setting up")
 
 ds_test = tf.data.TextLineDataset("test.csv").skip(1)
@@ -271,6 +222,7 @@ https://www.tensorflow.org/api_docs/python/tf/reduce_mean
 cost = tf.reduce_mean(out)
 mean_error_train, mean_error_train_update = tf.metrics.mean_absolute_error(tf.argmax(y,1), tf.argmax(prediction, 1))
 mean_error_validation, mean_error_validation_update = tf.metrics.mean_absolute_error(tf.argmax(y,1), tf.argmax(prediction, 1))
+mean_error_test, mean_error_test_update = tf.metrics.mean_absolute_error(tf.argmax(y,1), tf.argmax(prediction, 1))
 tf.summary.scalar("mean loss train", mean_error_train)
 tf.summary.scalar("mean loss validation", mean_error_validation)
 
